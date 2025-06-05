@@ -16,5 +16,10 @@
 5. 自动重连(测试版)
 失效自动重连
 
+# 使用
 
 ![Screenshot 2025-06-05 at 15 32 38@2x](https://github.com/user-attachments/assets/bdf55280-0aac-455a-a7a9-d768e8653b42)
+
+
+https://github.com/user-attachments/assets/cb23bbbe-102f-41eb-a7f0-4152fd833584
+
