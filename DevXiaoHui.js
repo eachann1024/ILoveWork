@@ -1,15 +1,21 @@
 // ==UserScript==
-// @name         DEV 蓝色小慧 - 增强版
+// @name         DevBlueChat
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-05-enhanced
-// @description  自动短信登录流程 + 文件下载监控 + 黑名单过滤
+// @version      1.0.0
+// @description  自动短信登录流程 + 文件下载监控 + 黑名单过滤，支持自定义配置，提升工作效率
 // @author       Eachann
 // @match        https://codigger.onecloud.cn/*
 // @icon         https://files.catbox.moe/8l13tx.jpg
+// @homepage     https://github.com/eachann1024/ILoveWork/blob/master/DevXiaoHui.js
+// @supportURL   https://github.com/eachann1024/ILoveWork/issues
+// @license      MIT
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @run-at       document-end
+// @updateURL    https://raw.githubusercontent.com/eachann1024/ILoveWork/master/DevXiaoHui.js
+// @downloadURL  https://raw.githubusercontent.com/eachann1024/ILoveWork/master/DevXiaoHui.js
 // ==/UserScript==
 
 (function() {
@@ -72,7 +78,7 @@
                          style="width: 64px; height: 64px; border-radius: 50%; margin-right: 20px; border: 2px solid #E31937;">
                     <div>
                         <h2 style="margin: 0; font-size: 24px; font-weight: 600; color: #E31937;">Eachann</h2>
-                        <p style="margin: 4px 0 0 0; color: #888; font-size: 14px;">村里唯一的程序员</p>
+                        <p style="margin: 4px 0 0 0; color: #888; font-size: 14px;">早点下班吧 别卷了</p>
                     </div>
                 </div>
 
