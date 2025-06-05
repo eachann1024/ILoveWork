@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DevBlueChat
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  自动短信登录流程 + 文件下载监控 + 黑名单过滤，支持自定义配置，提升工作效率
 // @author       Eachann
 // @match        https://codigger.onecloud.cn/*
@@ -26,7 +26,8 @@
         DOWNLOAD_ENABLED: 'downloadEnabled',
         BLACKLIST_ENABLED: 'blacklistEnabled',
         FILE_BLACKLIST: 'fileBlacklist',
-        PHONE_NUMBER: 'phoneNumber'
+        PHONE_NUMBER: 'phoneNumber',
+        AUTO_RECONNECT: 'autoReconnect'
     };
 
     // 默认配置
@@ -34,7 +35,8 @@
         [CONFIG_KEYS.DOWNLOAD_ENABLED]: true,
         [CONFIG_KEYS.BLACKLIST_ENABLED]: false,
         [CONFIG_KEYS.FILE_BLACKLIST]: '.exe,.bat,.cmd,.scr,.pif',
-        [CONFIG_KEYS.PHONE_NUMBER]: ''
+        [CONFIG_KEYS.PHONE_NUMBER]: '',
+        [CONFIG_KEYS.AUTO_RECONNECT]: true
     };
 
     // 获取配置
@@ -69,6 +71,7 @@
 
         const downloadEnabled = getConfig(CONFIG_KEYS.DOWNLOAD_ENABLED);
         const blacklistEnabled = getConfig(CONFIG_KEYS.BLACKLIST_ENABLED);
+        const autoReconnect = getConfig(CONFIG_KEYS.AUTO_RECONNECT);
 
         panel.innerHTML = `
             <div style="padding: 32px;">
@@ -83,6 +86,25 @@
                 </div>
 
                 <h3 style="margin: 0 0 32px 0; font-size: 28px; font-weight: 300; text-align: center;">脚本设置</h3>
+
+                <!-- 自动重新连接开关 -->
+                <div style="margin: 24px 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
+                    <div>
+                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 4px;">自动重新连接(Beta)</div>
+                        <div style="color: #888; font-size: 14px;">连接断开时自动点击重新连接</div>
+                    </div>
+                    <div id="reconnectToggle" style="
+                        width: 60px; height: 32px; border-radius: 16px; cursor: pointer; position: relative;
+                        background: ${autoReconnect ? '#E31937' : '#333'};
+                        transition: all 0.3s ease;
+                    ">
+                        <div style="
+                            width: 28px; height: 28px; border-radius: 50%; background: white;
+                            position: absolute; top: 2px; left: ${autoReconnect ? '30px' : '2px'};
+                            transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        "></div>
+                    </div>
+                </div>
 
                 <!-- 下载功能开关 -->
                 <div style="margin: 24px 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
@@ -169,6 +191,16 @@
         // 切换按钮状态
         let downloadState = downloadEnabled;
         let blacklistState = blacklistEnabled;
+        let reconnectState = autoReconnect;
+
+        // 自动重新连接切换
+        const reconnectToggle = panel.querySelector('#reconnectToggle');
+        reconnectToggle.onclick = () => {
+            reconnectState = !reconnectState;
+            const toggle = reconnectToggle.querySelector('div');
+            reconnectToggle.style.background = reconnectState ? '#E31937' : '#333';
+            toggle.style.left = reconnectState ? '30px' : '2px';
+        };
 
         // 下载功能切换
         const downloadToggle = panel.querySelector('#downloadToggle');
@@ -225,6 +257,7 @@
             setConfig(CONFIG_KEYS.BLACKLIST_ENABLED, blacklistState);
             setConfig(CONFIG_KEYS.FILE_BLACKLIST, fileBlacklistInput.value);
             setConfig(CONFIG_KEYS.PHONE_NUMBER, document.querySelector('#phoneNumber').value);
+            setConfig(CONFIG_KEYS.AUTO_RECONNECT, reconnectState);
             document.body.removeChild(panel);
 
             // 显示保存成功提示并刷新页面
@@ -569,6 +602,9 @@
             interceptXHR();
             interceptFetch();
         }
+
+        // 监听连接断开弹窗
+        watchDisconnectModal();
     }
 
     /**
@@ -683,6 +719,45 @@
         } catch (error) {
             console.error('自动短信登录脚本执行失败:', error);
         }
+    }
+
+    // 监听连接断开弹窗
+    function watchDisconnectModal() {
+        // 检查是否启用自动重新连接
+        if (!getConfig(CONFIG_KEYS.AUTO_RECONNECT)) {
+            console.log('⚠️ 自动重新连接功能已禁用');
+            return;
+        }
+
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // 检查是否是连接断开弹窗
+                            const modalContent = node.querySelector('.ant-modal-confirm-content');
+                            if (modalContent && modalContent.textContent.includes('连接断开，请刷新重试')) {
+                                console.log('🔍 检测到连接断开弹窗，尝试自动重新连接');
+                                // 查找并点击重新连接按钮
+                                const reconnectBtn = node.querySelector('.ant-modal-confirm-btns .ant-btn:not(.ant-btn-primary)');
+                                if (reconnectBtn) {
+                                    setTimeout(() => {
+                                        reconnectBtn.click();
+                                        console.log('✅ 已点击重新连接按钮');
+                                    }, 500);
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        // 监听整个文档的变化
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
     }
 
     // ==================== 脚本启动 ====================
