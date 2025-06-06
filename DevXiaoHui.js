@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DevBlueChat
 // @namespace    http://tampermonkey.net/
-// @version      1.0.3
+// @version      1.0.4
 // @description  自动短信登录流程 + 文件下载监控 + 黑名单过滤，支持自定义配置，提升工作效率
 // @author       Eachann
 // @match        https://codigger.onecloud.cn/*
@@ -128,23 +128,14 @@
 
         panel.innerHTML = `
             <div style="padding: 32px;">
-                <!-- 作者信息区域 -->
-                <div style="display: flex; align-items: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #333;">
-                    <img src="https://files.catbox.moe/rnx7yz.jpeg"
-                         style="width: 64px; height: 64px; border-radius: 50%; margin-right: 20px; border: 2px solid #E31937;">
-                    <div>
-                        <h2 style="margin: 0; font-size: 24px; font-weight: 600; color: #E31937;">Eachann</h2>
-                        <p style="margin: 4px 0 0 0; color: #888; font-size: 14px;">早点下班吧 别卷了</p>
-                    </div>
-                </div>
 
                 <h3 style="margin: 0 0 32px 0; font-size: 28px; font-weight: 300; text-align: center;">脚本设置</h3>
 
                 <!-- 自定义图标和标题开关 -->
                 <div style="margin: 24px 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
                     <div>
-                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 4px;">自定义页面图标和标题</div>
-                        <div style="color: #888; font-size: 14px;">将页面标题改为 Settings 并使用 Chrome 设置页面图标</div>
+                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 4px;">修改标题与图标</div>
+                        <div style="color: #888; font-size: 14px;">DDDD</div>
                     </div>
                     <div id="iconTitleToggle" style="
                         width: 60px; height: 32px; border-radius: 16px; cursor: pointer; position: relative;
