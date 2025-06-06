@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DevBlueChat
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.0.3
 // @description  自动短信登录流程 + 文件下载监控 + 黑名单过滤，支持自定义配置，提升工作效率
 // @author       Eachann
 // @match        https://codigger.onecloud.cn/*
@@ -27,7 +27,8 @@
         BLACKLIST_ENABLED: 'blacklistEnabled',
         FILE_BLACKLIST: 'fileBlacklist',
         PHONE_NUMBER: 'phoneNumber',
-        AUTO_RECONNECT: 'autoReconnect'
+        AUTO_RECONNECT: 'autoReconnect',
+        CUSTOM_ICON_TITLE: 'customIconTitle'
     };
 
     // 默认配置
@@ -36,7 +37,8 @@
         [CONFIG_KEYS.BLACKLIST_ENABLED]: false,
         [CONFIG_KEYS.FILE_BLACKLIST]: '.exe,.bat,.cmd,.scr,.pif',
         [CONFIG_KEYS.PHONE_NUMBER]: '',
-        [CONFIG_KEYS.AUTO_RECONNECT]: true
+        [CONFIG_KEYS.AUTO_RECONNECT]: true,
+        [CONFIG_KEYS.CUSTOM_ICON_TITLE]: true
     };
 
     // 上传状态标记
@@ -122,6 +124,7 @@
         const downloadEnabled = getConfig(CONFIG_KEYS.DOWNLOAD_ENABLED);
         const blacklistEnabled = getConfig(CONFIG_KEYS.BLACKLIST_ENABLED);
         const autoReconnect = getConfig(CONFIG_KEYS.AUTO_RECONNECT);
+        const customIconTitle = getConfig(CONFIG_KEYS.CUSTOM_ICON_TITLE);
 
         panel.innerHTML = `
             <div style="padding: 32px;">
@@ -136,6 +139,25 @@
                 </div>
 
                 <h3 style="margin: 0 0 32px 0; font-size: 28px; font-weight: 300; text-align: center;">脚本设置</h3>
+
+                <!-- 自定义图标和标题开关 -->
+                <div style="margin: 24px 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
+                    <div>
+                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 4px;">自定义页面图标和标题</div>
+                        <div style="color: #888; font-size: 14px;">将页面标题改为 Settings 并使用 Chrome 设置页面图标</div>
+                    </div>
+                    <div id="iconTitleToggle" style="
+                        width: 60px; height: 32px; border-radius: 16px; cursor: pointer; position: relative;
+                        background: ${customIconTitle ? '#E31937' : '#333'};
+                        transition: all 0.3s ease;
+                    ">
+                        <div style="
+                            width: 28px; height: 28px; border-radius: 50%; background: white;
+                            position: absolute; top: 2px; left: ${customIconTitle ? '30px' : '2px'};
+                            transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        "></div>
+                    </div>
+                </div>
 
                 <!-- 自动重新连接开关 -->
                 <div style="margin: 24px 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
@@ -242,6 +264,16 @@
         let downloadState = downloadEnabled;
         let blacklistState = blacklistEnabled;
         let reconnectState = autoReconnect;
+        let iconTitleState = customIconTitle;
+
+        // 自定义图标标题切换
+        const iconTitleToggle = panel.querySelector('#iconTitleToggle');
+        iconTitleToggle.onclick = () => {
+            iconTitleState = !iconTitleState;
+            const toggle = iconTitleToggle.querySelector('div');
+            iconTitleToggle.style.background = iconTitleState ? '#E31937' : '#333';
+            toggle.style.left = iconTitleState ? '30px' : '2px';
+        };
 
         // 自动重新连接切换
         const reconnectToggle = panel.querySelector('#reconnectToggle');
@@ -308,6 +340,7 @@
             setConfig(CONFIG_KEYS.FILE_BLACKLIST, fileBlacklistInput.value);
             setConfig(CONFIG_KEYS.PHONE_NUMBER, document.querySelector('#phoneNumber').value);
             setConfig(CONFIG_KEYS.AUTO_RECONNECT, reconnectState);
+            setConfig(CONFIG_KEYS.CUSTOM_ICON_TITLE, iconTitleState);
             document.body.removeChild(panel);
 
             // 显示保存成功提示并刷新页面
@@ -656,10 +689,67 @@
         };
     }
 
+    // ==================== 页面图标和标题修改 ====================
+
+    // 设置图标 SVG (直接嵌入，无背景，居中显示)
+    const SETTINGS_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#5f6368"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></svg>`;
+
+    // 将 SVG 转换为 Data URL (无背景，透明)
+    const CHROME_SETTINGS_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(SETTINGS_ICON_SVG)}`;
+
+    // 修改页面图标和标题
+    function updatePageIconAndTitle() {
+        // 检查是否启用自定义图标和标题功能
+        if (!getConfig(CONFIG_KEYS.CUSTOM_ICON_TITLE)) {
+            console.log('⚠️ 自定义图标和标题功能已禁用');
+            return;
+        }
+
+        try {
+            // 修改页面标题
+            document.title = 'Settings';
+
+            // 移除所有现有的图标链接
+            const existingIcons = document.querySelectorAll('link[rel*="icon"]');
+            existingIcons.forEach(icon => icon.remove());
+
+            // 创建新的 favicon (SVG格式，透明背景，居中显示)
+            const favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            favicon.type = 'image/svg+xml';
+            favicon.href = CHROME_SETTINGS_ICON;
+            document.head.appendChild(favicon);
+
+            // 添加额外的图标类型以确保兼容性
+            const iconTypes = [
+                { rel: 'shortcut icon', type: 'image/svg+xml' },
+                { rel: 'apple-touch-icon', type: 'image/svg+xml' }
+            ];
+
+            iconTypes.forEach(iconType => {
+                const newIcon = document.createElement('link');
+                newIcon.rel = iconType.rel;
+                newIcon.type = iconType.type;
+                newIcon.href = CHROME_SETTINGS_ICON;
+                document.head.appendChild(newIcon);
+            });
+
+            console.log('✅ 页面图标和标题已更新为 Settings (使用嵌入的SVG图标，无背景，居中显示)');
+        } catch (error) {
+            console.error('❌ 更新页面图标和标题失败:', error);
+        }
+    }
+
     // ==================== 主要功能初始化 ====================
 
     // 初始化所有功能
     function initializeFeatures() {
+        // 修改页面图标和标题
+        updatePageIconAndTitle();
+
+        // 监听页面标题变化
+        watchTitleChanges();
+
         // 如果在登录页，执行登录逻辑
         if (isLoginPage()) {
             console.warn('当前是登录页面，执行自动登录');
@@ -828,6 +918,38 @@
             childList: true,
             subtree: true
         });
+    }
+
+    // 监听页面标题变化，确保始终显示 Settings
+    function watchTitleChanges() {
+        // 检查是否启用自定义图标和标题功能
+        if (!getConfig(CONFIG_KEYS.CUSTOM_ICON_TITLE)) {
+            return;
+        }
+
+        // 创建一个 MutationObserver 来监听 title 元素的变化
+        const titleObserver = new MutationObserver(() => {
+            if (getConfig(CONFIG_KEYS.CUSTOM_ICON_TITLE) && document.title !== 'Settings') {
+                document.title = 'Settings';
+                console.log('🔄 页面标题已重置为 Settings');
+            }
+        });
+
+        // 监听 head 元素的变化
+        if (document.head) {
+            titleObserver.observe(document.head, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+        }
+
+        // 定期检查标题（备用方案）
+        setInterval(() => {
+            if (getConfig(CONFIG_KEYS.CUSTOM_ICON_TITLE) && document.title !== 'Settings') {
+                document.title = 'Settings';
+            }
+        }, 2000);
     }
 
     // ==================== 脚本启动 ====================
