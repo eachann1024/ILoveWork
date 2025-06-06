@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DevBlueChat
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.0.2
 // @description  自动短信登录流程 + 文件下载监控 + 黑名单过滤，支持自定义配置，提升工作效率
 // @author       Eachann
 // @match        https://codigger.onecloud.cn/*
@@ -38,6 +38,56 @@
         [CONFIG_KEYS.PHONE_NUMBER]: '',
         [CONFIG_KEYS.AUTO_RECONNECT]: true
     };
+
+    // 上传状态标记
+    let isUploading = false;
+    let uploadTimer = null;
+
+    // 已下载文件记录 (使用 Set 存储文件的唯一标识)
+    const downloadedFiles = new Set();
+
+    // 下载节流控制
+    let lastDownloadTime = 0;
+    const DOWNLOAD_THROTTLE_INTERVAL = 3000; // 3秒内只允许触发一次下载
+
+    // 生成文件唯一标识
+    function generateFileId(requestData) {
+        // 使用文件名、消息ID、用户ID等信息生成唯一标识
+        const fileName = requestData.fileName || '';
+        const msgId = requestData.msgId || '';
+        const userId = requestData.chatUserId || '';
+        return `${fileName}_${msgId}_${userId}`;
+    }
+
+    // 检查文件是否已下载过
+    function isFileAlreadyDownloaded(requestData) {
+        const fileId = generateFileId(requestData);
+        return downloadedFiles.has(fileId);
+    }
+
+    // 记录文件已下载
+    function markFileAsDownloaded(requestData) {
+        const fileId = generateFileId(requestData);
+        downloadedFiles.add(fileId);
+        console.log('📝 记录文件下载:', requestData.fileName, '(ID:', fileId, ')');
+    }
+
+    // 设置上传状态
+    function setUploadingState(isUpload) {
+        isUploading = isUpload;
+        if (isUpload) {
+            console.log('📤 检测到文件上传，临时禁用下载功能');
+            // 清除之前的定时器
+            if (uploadTimer) {
+                clearTimeout(uploadTimer);
+            }
+            // 20秒后恢复下载功能
+            uploadTimer = setTimeout(() => {
+                isUploading = false;
+                console.log('✅ 文件上传冷却结束，恢复下载功能');
+            }, 20000);
+        }
+    }
 
     // 获取配置
     function getConfig(key) {
@@ -320,6 +370,13 @@
 
     // 触发下载按钮点击
     function triggerDownload() {
+        // 检查下载节流
+        const currentTime = Date.now();
+        if (currentTime - lastDownloadTime < DOWNLOAD_THROTTLE_INTERVAL) {
+            console.log('⏱️ 下载节流中，跳过本次触发 (距离上次下载', Math.round((currentTime - lastDownloadTime) / 1000), '秒)');
+            return false;
+        }
+
         try {
             // 多种选择器尝试查找下载图标
             const selectors = [
@@ -378,6 +435,7 @@
                     try {
                         // 方式1: 直接点击
                         clickTarget.click();
+                        lastDownloadTime = Date.now(); // 更新最后下载时间
                         console.log('✅ 自动触发文件下载 (直接点击)');
                         return true;
                     } catch (e) {
@@ -385,6 +443,7 @@
                             // 方式2: 简化的事件分发 (已验证有效)
                             const clickEvent = new Event('click', { bubbles: true });
                             clickTarget.dispatchEvent(clickEvent);
+                            lastDownloadTime = Date.now(); // 更新最后下载时间
                             console.log('✅ 自动触发文件下载 (事件分发)');
                             return true;
                         } catch (e2) {
@@ -470,56 +529,63 @@
             const xhr = this;
 
             // 监听请求载荷（发送的数据）
-            if (xhr._url && xhr._url.includes('add/record') && data) {
-                try {
-                    let requestData;
+            if (xhr._url) {
+                // 检查是否是上传请求
+                if (xhr._url.includes('file/upload')) {
+                    setUploadingState(true);
+                }
+                // 检查是否是 add/record 请求
+                else if (xhr._url.includes('add/record') && data) {
+                    try {
+                        let requestData;
 
-                    // 尝试解析请求数据
-                    if (typeof data === 'string') {
-                        requestData = JSON.parse(data);
-                    } else if (data instanceof FormData) {
-                        // 如果是 FormData，尝试获取数据
-                        const formDataObj = {};
-                        for (let [key, value] of data.entries()) {
-                            formDataObj[key] = value;
-                        }
-                        requestData = formDataObj;
-                    } else {
-                        requestData = data;
-                    }
-
-                    console.log('🔍 监听到 add/record 请求载荷:', requestData);
-
-                    // 检查是否是文件类型
-                    if (requestData && requestData.chatType === 'file') {
-                        console.log('📁 检测到文件消息:', requestData.fileName);
-
-                        // 检查是否启用下载功能
-                        if (!getConfig(CONFIG_KEYS.DOWNLOAD_ENABLED)) {
-                            console.log('⚠️ 文件下载功能已禁用');
-                            return originalSend.call(this, data);
-                        }
-
-                        // 检查文件是否在黑名单中
-                        if (isFileBlacklisted(requestData.fileName)) {
-                            console.log('🚫 文件在黑名单中，跳过下载:', requestData.fileName);
-                            return originalSend.call(this, data);
-                        }
-
-                        // 延迟触发下载，等待DOM更新
-                        setTimeout(() => {
-                            triggerDownload();
-                        }, 1000); // 增加延迟时间，确保消息已经渲染到页面
-
-                        // 如果第一次尝试失败，使用 MutationObserver 监听DOM变化
-                        setTimeout(() => {
-                            if (!triggerDownload()) {
-                                watchForNewDownloadButton();
+                        // 尝试解析请求数据
+                        if (typeof data === 'string') {
+                            requestData = JSON.parse(data);
+                        } else if (data instanceof FormData) {
+                            // 如果是 FormData，尝试获取数据
+                            const formDataObj = {};
+                            for (let [key, value] of data.entries()) {
+                                formDataObj[key] = value;
                             }
-                        }, 2000);
+                            requestData = formDataObj;
+                        } else {
+                            requestData = data;
+                        }
+
+                        console.log('🔍 监听到 add/record 请求载荷:', requestData);
+
+                        // 检查是否是文件类型
+                        if (requestData && requestData.chatType === 'file') {
+                            console.log('📁 检测到文件消息:', requestData.fileName);
+
+                            // 检查是否启用下载功能且不在上传状态
+                            if (!getConfig(CONFIG_KEYS.DOWNLOAD_ENABLED) || isUploading) {
+                                console.log('⚠️ 文件下载功能已禁用或正在上传中');
+                                return originalSend.call(this, data);
+                            }
+
+                            // 检查文件是否在黑名单中
+                            if (isFileBlacklisted(requestData.fileName)) {
+                                console.log('🚫 文件在黑名单中，跳过下载:', requestData.fileName);
+                                return originalSend.call(this, data);
+                            }
+
+                            // 延迟触发下载，等待DOM更新
+                            setTimeout(() => {
+                                triggerDownload();
+                            }, 1000);
+
+                            // 如果第一次尝试失败，使用 MutationObserver 监听DOM变化
+                            setTimeout(() => {
+                                if (!triggerDownload()) {
+                                    watchForNewDownloadButton();
+                                }
+                            }, 2000);
+                        }
+                    } catch (error) {
+                        console.error('❌ 解析请求载荷失败:', error);
                     }
-                } catch (error) {
-                    console.error('❌ 解析请求载荷失败:', error);
                 }
             }
 
@@ -535,8 +601,12 @@
             const url = args[0];
             const options = args[1] || {};
 
+            // 检查是否是上传请求
+            if (url && url.includes && url.includes('file/upload')) {
+                setUploadingState(true);
+            }
             // 检查是否是 add/record 请求并且有请求体
-            if (url && url.includes && url.includes('add/record') && options.body) {
+            else if (url && url.includes && url.includes('add/record') && options.body) {
                 try {
                     let requestData;
 
@@ -553,9 +623,9 @@
                     if (requestData && requestData.chatType === 'file') {
                         console.log('📁 检测到文件消息:', requestData.fileName);
 
-                        // 检查是否启用下载功能
-                        if (!getConfig(CONFIG_KEYS.DOWNLOAD_ENABLED)) {
-                            console.log('⚠️ 文件下载功能已禁用');
+                        // 检查是否启用下载功能且不在上传状态
+                        if (!getConfig(CONFIG_KEYS.DOWNLOAD_ENABLED) || isUploading) {
+                            console.log('⚠️ 文件下载功能已禁用或正在上传中');
                             return originalFetch.apply(this, args);
                         }
 
@@ -568,7 +638,7 @@
                         // 延迟触发下载，等待DOM更新
                         setTimeout(() => {
                             triggerDownload();
-                        }, 1000); // 增加延迟时间，确保消息已经渲染到页面
+                        }, 1000);
 
                         // 如果第一次尝试失败，使用 MutationObserver 监听DOM变化
                         setTimeout(() => {
